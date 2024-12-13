@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		594EF3192D07807F00286C3C /* libopencv_core.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF3182D07807F00286C3C /* libopencv_core.4.10.0.dylib */; };
+		594EF31B2D07809D00286C3C /* libopencv_highgui.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF31A2D07809D00286C3C /* libopencv_highgui.4.10.0.dylib */; };
+		594EF31D2D0780AC00286C3C /* libopencv_imgproc.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF31C2D0780AC00286C3C /* libopencv_imgproc.4.10.0.dylib */; };
+		594EF31F2D0780BA00286C3C /* libopencv_objdetect.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF31E2D0780BA00286C3C /* libopencv_objdetect.4.10.0.dylib */; };
+		594EF3212D0780CA00286C3C /* libopencv_video.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF3202D0780CA00286C3C /* libopencv_video.4.10.0.dylib */; };
+		594EF3232D0780DD00286C3C /* libopencv_videoio.4.10.0.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 594EF3222D0780DD00286C3C /* libopencv_videoio.4.10.0.dylib */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		594EF2F42D07788100286C3C /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -20,6 +29,12 @@
 
 /* Begin PBXFileReference section */
 		594EF2F62D07788100286C3C /* AdvancedDetectionSystem */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = AdvancedDetectionSystem; sourceTree = BUILT_PRODUCTS_DIR; };
+		594EF3182D07807F00286C3C /* libopencv_core.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_core.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_core.4.10.0.dylib; sourceTree = "<group>"; };
+		594EF31A2D07809D00286C3C /* libopencv_highgui.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_highgui.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_highgui.4.10.0.dylib; sourceTree = "<group>"; };
+		594EF31C2D0780AC00286C3C /* libopencv_imgproc.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_imgproc.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_imgproc.4.10.0.dylib; sourceTree = "<group>"; };
+		594EF31E2D0780BA00286C3C /* libopencv_objdetect.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_objdetect.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_objdetect.4.10.0.dylib; sourceTree = "<group>"; };
+		594EF3202D0780CA00286C3C /* libopencv_video.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_video.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_video.4.10.0.dylib; sourceTree = "<group>"; };
+		594EF3222D0780DD00286C3C /* libopencv_videoio.4.10.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_videoio.4.10.0.dylib; path = ../../../../opt/homebrew/Cellar/opencv/4.10.0_15/lib/libopencv_videoio.4.10.0.dylib; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -35,6 +50,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				594EF3232D0780DD00286C3C /* libopencv_videoio.4.10.0.dylib in Frameworks */,
+				594EF3212D0780CA00286C3C /* libopencv_video.4.10.0.dylib in Frameworks */,
+				594EF31F2D0780BA00286C3C /* libopencv_objdetect.4.10.0.dylib in Frameworks */,
+				594EF31D2D0780AC00286C3C /* libopencv_imgproc.4.10.0.dylib in Frameworks */,
+				594EF31B2D07809D00286C3C /* libopencv_highgui.4.10.0.dylib in Frameworks */,
+				594EF3192D07807F00286C3C /* libopencv_core.4.10.0.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -45,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				594EF2F82D07788100286C3C /* AdvancedDetectionSystem */,
+				594EF3172D07807F00286C3C /* Frameworks */,
 				594EF2F72D07788100286C3C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -55,6 +77,19 @@
 				594EF2F62D07788100286C3C /* AdvancedDetectionSystem */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		594EF3172D07807F00286C3C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				594EF3222D0780DD00286C3C /* libopencv_videoio.4.10.0.dylib */,
+				594EF3202D0780CA00286C3C /* libopencv_video.4.10.0.dylib */,
+				594EF31E2D0780BA00286C3C /* libopencv_objdetect.4.10.0.dylib */,
+				594EF31C2D0780AC00286C3C /* libopencv_imgproc.4.10.0.dylib */,
+				594EF31A2D07809D00286C3C /* libopencv_highgui.4.10.0.dylib */,
+				594EF3182D07807F00286C3C /* libopencv_core.4.10.0.dylib */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -245,6 +280,24 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/opt/homebrew/include/opencv4,
+					/usr/local/include/opencv4,
+					"$(PROJECT_DIR)/include",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/lib,
+					/opt/homebrew/lib,
+					/opt/homebrew/Cellar/opencv/4.10.0_15/lib,
+				);
+				OTHER_LDFLAGS = (
+					"-lopencv_videoio",
+					"-lopencv_video",
+					"-lopencv_objdetect",
+					"-lopencv_imgproc",
+					"-lopencv_highgui",
+					"-lopencv_core",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -253,6 +306,24 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/opt/homebrew/include/opencv4,
+					/usr/local/include/opencv4,
+					"$(PROJECT_DIR)/include",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					/usr/local/lib,
+					/opt/homebrew/lib,
+					/opt/homebrew/Cellar/opencv/4.10.0_15/lib,
+				);
+				OTHER_LDFLAGS = (
+					"-lopencv_videoio",
+					"-lopencv_video",
+					"-lopencv_objdetect",
+					"-lopencv_imgproc",
+					"-lopencv_highgui",
+					"-lopencv_core",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
