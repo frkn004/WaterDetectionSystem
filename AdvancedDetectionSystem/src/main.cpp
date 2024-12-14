@@ -3,179 +3,163 @@
 #include <fstream>
 #include <opencv2/opencv.hpp>
 #include "ObjectDetector.hpp"
+#include "HumanDetector.hpp"
+#include "SeaDetector.hpp"
+#include "NotificationSystem.hpp"
 
-void displaySystemInfo() {
-    std::cout << "\n=== Gelişmiş Tespit Sistemi - Özellikler ===\n";
-    std::cout << "Aktif Özellikler:\n";
-    std::cout << "1. FPS Gösterimi (1 tuşu)\n";
-    std::cout << "2. Hareket İzleme (2 tuşu)\n";
-    std::cout << "3. Mesafe Ölçümü (3 tuşu)\n";
-    std::cout << "4. Yön Tespiti (4 tuşu)\n";
-    std::cout << "5. Su Seviyesi (5 tuşu)\n";
-    std::cout << "6. Cilt Tespiti (6 tuşu)\n";
-    std::cout << "7. Deniz Tespiti (7 tuşu)\n";
-    std::cout << "8. İnsan Tespiti (8 tuşu)\n\n";
-    std::cout << "Kontroller:\n";
-    std::cout << "H: Yardım Menüsü\n";
-    std::cout << "Q: Çıkış\n";
-    std::cout << "========================================\n\n";
+void displayMenu() {
+    std::cout << "\n=== Deniz Güvenlik Sistemi ===\n";
+    std::cout << "1. Sistemi Başlat\n";
+    std::cout << "2. Ayarlar\n";
+    std::cout << "3. Çıkış\n";
+    std::cout << "Seçiminiz (1-3): ";
 }
 
-void detectFacesAndObjects(const std::string& videoSource) {
-    try {
-        // MacOS için cascade dosyası konumları
-        std::vector<std::string> possiblePaths = {
-            "/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
-            "/opt/homebrew/share/opencv4/haarcascades/haarcascade_frontalface_default.xml",
-            "haarcascade_frontalface_default.xml",
-            "../resources/haarcascade_frontalface_default.xml",
-            "./resources/haarcascade_frontalface_default.xml"
-        };
+void displaySettings() {
+    std::cout << "\n=== Ayarlar ===\n";
+    std::cout << "1. İnsan Tespiti (Açık/Kapalı)\n";
+    std::cout << "2. Yüz Tespiti (Açık/Kapalı)\n";
+    std::cout << "3. Deniz Analizi (Açık/Kapalı)\n";
+    std::cout << "4. Ana Menüye Dön\n";
+    std::cout << "Seçiminiz (1-4): ";
+}
 
-        ObjectDetector* detector = nullptr;
-        for (const auto& path : possiblePaths) {
-            try {
-                detector = new ObjectDetector(path);
-                std::cout << "Cascade sınıflandırıcı başarıyla yüklendi: " << path << std::endl;
-                break;
-            } catch (const std::exception& e) {
-                continue;
+class SystemSettings {
+public:
+    bool humanDetectionEnabled = true;
+    bool faceDetectionEnabled = true;
+    bool seaAnalysisEnabled = true;
+};
+
+void runDetectionSystem(SystemSettings& settings) {
+    HumanDetector humanDetector;
+    SeaDetector seaDetector;
+    NotificationSystem notifier;
+    
+    // Yüz tespiti için cascade sınıflandırıcı
+    cv::CascadeClassifier faceCascade;
+    if (settings.faceDetectionEnabled) {
+        if (!faceCascade.load("haarcascade_frontalface_default.xml")) {
+            std::cerr << "Yüz cascade dosyası yüklenemedi!" << std::endl;
+            return;
+        }
+    }
+    
+    cv::VideoCapture camera;
+    camera.open(0);
+    if (!camera.isOpened()) {
+        std::cerr << "Kamera açılamadı!" << std::endl;
+        return;
+    }
+    
+    while (true) {
+        cv::Mat frame;
+        camera >> frame;
+        if (frame.empty()) break;
+        
+        // İnsan tespiti
+        if (settings.humanDetectionEnabled) {
+            auto detections = humanDetector.detect(frame);
+            for (const auto& detection : detections) {
+                cv::rectangle(frame, detection.boundingBox, cv::Scalar(0, 255, 0), 2);
             }
         }
-
-        if (!detector) {
-            throw std::runtime_error("Cascade sınıflandırıcı dosyası bulunamadı!");
+        
+        // Yüz tespiti
+        if (settings.faceDetectionEnabled) {
+            cv::Mat gray;
+            cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+            std::vector<cv::Rect> faces;
+            faceCascade.detectMultiScale(gray, faces, 1.1, 4);
+            
+            for (const auto& face : faces) {
+                cv::rectangle(frame, face, cv::Scalar(255, 0, 0), 2);
+                cv::putText(frame, "Yuz", 
+                           cv::Point(face.x, face.y - 5),
+                           cv::FONT_HERSHEY_SIMPLEX, 0.5, 
+                           cv::Scalar(255, 0, 0), 2);
+            }
         }
-
-        cv::VideoCapture cap;
-        if (videoSource == "0") {
-            cap.open(0);
-            if (!cap.isOpened()) {
-                throw std::runtime_error("Webcam açılamadı!");
+        
+        // Deniz analizi
+        if (settings.seaAnalysisEnabled) {
+            auto sceneAnalysis = seaDetector.analyzeScene(frame);
+            seaDetector.visualizeResults(frame, sceneAnalysis);
+            
+            // Tehlike durumu kontrolü
+            if (sceneAnalysis.isDangerous) {
+                notifier.sendAlert("Tehlikeli dalga seviyesi tespit edildi!");
             }
-            std::cout << "Webcam başarıyla açıldı.\n";
-            cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-            cap.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
-            cap.set(cv::CAP_PROP_FPS, 30);
-            
-        } else {
-            // Video dosyası kontrol et
-            std::ifstream fileCheck(videoSource.c_str());
-            if (!fileCheck.good()) {
-                throw std::runtime_error("Video dosyası bulunamadı: " + videoSource);
-            }
-            fileCheck.close();
-            
-            cap.open(videoSource);
-            if (!cap.isOpened()) {
-                throw std::runtime_error("Video dosyası açılamadı: " + videoSource);
-            }
-            
-            int frameWidth = cap.get(cv::CAP_PROP_FRAME_WIDTH);
-            int frameHeight = cap.get(cv::CAP_PROP_FRAME_HEIGHT);
-            double fps = cap.get(cv::CAP_PROP_FPS);
-            
-            std::cout << "Video başarıyla açıldı: " << videoSource << "\n";
-            std::cout << "Video özellikleri:\n";
-                        std::cout << "Genişlik: " << frameWidth << "\n";
-                        std::cout << "Yükseklik: " << frameHeight << "\n";
-                        std::cout << "FPS: " << fps << "\n";
-                    }
+        }
+        
+        // Kontrol tuşları bilgisi
+        cv::putText(frame, "ESC: Cikis | S: Ayarlar", 
+                   cv::Point(10, frame.rows - 20),
+                   cv::FONT_HERSHEY_SIMPLEX, 0.5, 
+                   cv::Scalar(255, 255, 255), 1);
+        
+        cv::imshow("Deniz Guvenlik Sistemi", frame);
+        
+        char key = cv::waitKey(1);
+        if (key == 27) break;        // ESC
+        else if (key == 's' || key == 'S') {
+            // Ayarlar menüsünü göster
+            camera.release();
+            cv::destroyAllWindows();
+            return;
+        }
+    }
+    
+    camera.release();
+    cv::destroyAllWindows();
+}
 
-                    cv::namedWindow("Detection System", cv::WINDOW_NORMAL);
-                    cv::resizeWindow("Detection System", 1280, 720);
-
-                    displaySystemInfo();
-
-                    cv::Mat frame;
-                    char key = 0;
-                    
-                    while (key != 'q' && key != 'Q') {
-                        cap >> frame;
-                        if (frame.empty()) {
-                            std::cout << "Video bitti veya frame alınamadı.\n";
-                            break;
-                        }
-
-                        try {
-                            detector->detectAndTrack(frame);
-                            cv::imshow("Detection System", frame);
-                        } catch (const std::exception& e) {
-                            std::cerr << "Frame işlenirken hata oluştu: " << e.what() << std::endl;
-                            continue;
-                        }
-
-                        key = cv::waitKey(1) & 0xFF;
-                        detector->handleKeyPress(key);
-                    }
-
-                    delete detector;
-                    cap.release();
-                    cv::destroyAllWindows();
-
-                } catch (const std::exception& e) {
-                    std::cerr << "Hata: " << e.what() << std::endl;
+int main() {
+    SystemSettings settings;
+    
+    while (true) {
+        displayMenu();
+        
+        std::string choice;
+        std::getline(std::cin, choice);
+        
+        if (choice == "1") {
+            runDetectionSystem(settings);
+        }
+        else if (choice == "2") {
+            while (true) {
+                displaySettings();
+                std::string settingChoice;
+                std::getline(std::cin, settingChoice);
+                
+                if (settingChoice == "1") {
+                    settings.humanDetectionEnabled = !settings.humanDetectionEnabled;
+                    std::cout << "İnsan Tespiti: " 
+                             << (settings.humanDetectionEnabled ? "Açık" : "Kapalı") 
+                             << std::endl;
+                }
+                else if (settingChoice == "2") {
+                    settings.faceDetectionEnabled = !settings.faceDetectionEnabled;
+                    std::cout << "Yüz Tespiti: " 
+                             << (settings.faceDetectionEnabled ? "Açık" : "Kapalı") 
+                             << std::endl;
+                }
+                else if (settingChoice == "3") {
+                    settings.seaAnalysisEnabled = !settings.seaAnalysisEnabled;
+                    std::cout << "Deniz Analizi: " 
+                             << (settings.seaAnalysisEnabled ? "Açık" : "Kapalı") 
+                             << std::endl;
+                }
+                else if (settingChoice == "4") {
+                    break;
                 }
             }
-
-            void mainMenu() {
-                while (true) {
-                    std::cout << "\n=== Gelişmiş Tespit Sistemi ===\n";
-                    std::cout << "1. Tespit sistemini başlat\n";
-                    std::cout << "2. Sistem bilgilerini göster\n";
-                    std::cout << "3. Çıkış\n";
-                    std::cout << "Seçiminiz (1-3): ";
-
-                    std::string choice;
-                    std::getline(std::cin, choice);
-
-                    if (choice == "1") {
-                        std::cout << "\nVideo kaynağını seçin:\n";
-                        std::cout << "1. Webcam\n";
-                        std::cout << "2. Video dosyası\n";
-                        std::cout << "Seçiminiz (1-2): ";
-                        
-                        std::string sourceChoice;
-                        std::getline(std::cin, sourceChoice);
-                        
-                        std::string source;
-                        if (sourceChoice == "1") {
-                            source = "0";
-                            std::cout << "Webcam başlatılıyor...\n";
-                        } else if (sourceChoice == "2") {
-                            std::cout << "Video dosyası yolunu girin: ";
-                            std::getline(std::cin, source);
-                            // Yoldaki gereksiz boşlukları temizle
-                            source.erase(0, source.find_first_not_of(" \t\n\r\f\v"));
-                            source.erase(source.find_last_not_of(" \t\n\r\f\v") + 1);
-                            std::cout << "Video yükleniyor: " << source << "\n";
-                        } else {
-                            std::cout << "Geçersiz seçim!\n";
-                            continue;
-                        }
-
-                        detectFacesAndObjects(source);
-                    }
-                    else if (choice == "2") {
-                        displaySystemInfo();
-                    }
-                    else if (choice == "3") {
-                        std::cout << "Sistemden çıkılıyor...\n";
-                        break;
-                    }
-                    else {
-                        std::cout << "Geçersiz seçim! Lütfen 1-3 arası bir sayı girin.\n";
-                    }
-                }
-            }
-
-            int main() {
-                try {
-                    std::cout << "Gelişmiş Tespit Sistemi Başlatılıyor...\n";
-                    mainMenu();
-                } catch (const std::exception& e) {
-                    std::cerr << "Kritik hata: " << e.what() << std::endl;
-                    return 1;
-                }
-                return 0;
-            }
+        }
+        else if (choice == "3") {
+            std::cout << "Sistemden çıkılıyor...\n";
+            break;
+        }
+    }
+    
+    return 0;
+}

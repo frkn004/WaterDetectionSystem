@@ -34,6 +34,8 @@ private:
         cv::Mat distCoeffs;
     } params;
 
+    int nextTrackerId = 0;  // Yeni nesne takibi için benzersiz ID'ler
+
 private:
     float calculateDistance(const cv::Rect& box);
     void updateFPS();

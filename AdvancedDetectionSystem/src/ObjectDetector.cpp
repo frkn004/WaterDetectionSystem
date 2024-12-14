@@ -92,7 +92,7 @@ void ObjectDetector::detectAndTrackHumans(cv::Mat& frame) {
         }
         
         if (features.showTrajectory && human.isMoving) {
-            TrackedObject tracker;
+            TrackedObject tracker(nextTrackerId++);
             tracker.update(cv::Point2f(human.box.x + human.box.width/2,
                                      human.box.y + human.box.height/2));
             tracker.drawTrajectory(frame);
@@ -118,7 +118,7 @@ void ObjectDetector::detectAndTrackBoats(cv::Mat& frame) {
             }
             
             if (features.showTrajectory && boat.isMoving) {
-                TrackedObject tracker;
+                TrackedObject tracker(nextTrackerId++);
                 tracker.update(boat.position);
                 tracker.drawTrajectory(frame);
             }

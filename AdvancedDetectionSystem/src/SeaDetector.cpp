@@ -205,3 +205,61 @@ void SeaDetector::visualizeResults(cv::Mat& frame, const SeaDetector::SeaInfo& i
         std::cerr << "OpenCV Error in visualizeResults: " << e.what() << std::endl;
     }
 }
+
+SeaDetector::WaveAnalysis SeaDetector::analyzeWavePattern(const cv::Mat& frame) {
+    WaveAnalysis analysis;
+    
+    // Görüntü segmentasyonu ile su sınırını belirle
+    cv::Mat waterMask = detectWaterRegion(frame);
+    
+    // Dalgaların yüksekliğini hesapla
+    analysis.waveHeight = calculateWaveHeight(waterMask);
+    
+    // Dalga periyodunu hesapla
+    analysis.wavePeriod = calculateWavePeriod();
+    
+    // Tehlike durumunu değerlendir
+    analysis.isDangerous = evaluateWaveConditions(analysis);
+    
+    return analysis;
+}
+
+cv::Mat SeaDetector::detectWaterRegion(const cv::Mat& frame) {
+    // Renk ve doku analizi ile su bölgesini tespit et
+    cv::Mat mask;
+    cv::Mat hsv;
+    cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
+    
+    // Su için HSV aralığını belirle
+    cv::inRange(hsv, waterLowerBound, waterUpperBound, mask);
+    
+    // Morfolojik işlemlerle gürültüyü azalt
+    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
+    
+    return mask;
+}
+
+float SeaDetector::calculateWaveHeight(const cv::Mat& waterMask) {
+    // Kontur analizi ile dalga yüksekliğini hesapla
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(waterMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    
+    // En üst ve en alt noktaları bul
+    // ...
+    
+    return waveHeight;
+}
+
+float SeaDetector::calculateWavePeriod() {
+    // Dalga periyodunu hesapla
+    // ...
+    
+    return wavePeriod;
+}
+
+bool SeaDetector::evaluateWaveConditions(const WaveAnalysis& analysis) {
+    // Tehlike durumunu değerlendir
+    // ...
+    
+    return isDangerous;
+}

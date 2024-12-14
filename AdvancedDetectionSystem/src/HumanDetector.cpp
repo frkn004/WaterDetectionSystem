@@ -1,4 +1,6 @@
 #include "HumanDetector.hpp"
+#include <fstream>
+#include <iostream>
 
 HumanDetector::HumanDetector() :
     CONFIDENCE_THRESHOLD(0.5f),
@@ -214,4 +216,154 @@ void HumanDetector::postprocess(const cv::Mat& frame,
             previousDnnBox = info.box;
         }
     }
+}
+
+bool HumanDetector::detectHumanPose(const cv::Mat& frame, std::vector<cv::Point>& keypoints) {
+    // OpenPose veya MediaPipe kullanarak vücut pozisyonu tespiti
+    // Bu, yüzme hareketlerini daha iyi tespit etmemizi sağlar
+    return false; // Şimdilik boş implementasyon
+}
+
+float HumanDetector::calculateConfidenceScore(const cv::Rect& detection) {
+    // Tespit güvenilirlik skorunu hesapla
+    // Dalga ve ışık yansımalarını göz önünde bulundur
+    return 0.0f; // Şimdilik boş implementasyon
+}
+
+std::vector<TrackedObject> HumanDetector::detect(const cv::Mat& frame) {
+    std::vector<TrackedObject> detections;
+    
+    try {
+        // Görüntüyü ön işle
+        cv::Mat resized, gray;
+        cv::resize(frame, resized, cv::Size(), 0.5, 0.5);
+        cv::cvtColor(resized, gray, cv::COLOR_BGR2GRAY);
+        cv::equalizeHist(gray, gray); // Kontrast iyileştirme
+        
+        // HOG tespiti
+        std::vector<cv::Rect> found;
+        std::vector<double> weights;
+        hog.detectMultiScale(gray, found, weights, 0,
+                            cv::Size(8,8), cv::Size(32,32), 1.05, 2);
+        
+        // Tespitleri işle
+        for (size_t i = 0; i < found.size(); i++) {
+            if (weights[i] > CONFIDENCE_THRESHOLD) {
+                TrackedObject obj;
+                // Orijinal boyuta geri dönüştür
+                obj.boundingBox = cv::Rect(found[i].x * 2, found[i].y * 2,
+                                         found[i].width * 2, found[i].height * 2);
+                obj.confidence = weights[i];
+                obj.distance = calculateDistance(obj.boundingBox);
+                obj.direction = calculateDirection(obj.boundingBox, lastDetectedBox);
+                obj.isMoving = isPersonMoving(obj.boundingBox, lastDetectedBox);
+                
+                detections.push_back(obj);
+                lastDetectedBox = obj.boundingBox;
+            }
+        }
+        
+    } catch (const cv::Exception& e) {
+        std::cerr << "İnsan tespiti sırasında hata: " << e.what() << std::endl;
+    }
+    
+    return detections;
+}
+
+void HumanDetector::loadYOLOModel(const std::string& modelPath, const std::string& configPath) {
+    try {
+        net = cv::dnn::readNetFromDarknet(configPath, modelPath);
+        net.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV);
+        net.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+        
+        std::cout << "YOLO modeli başarıyla yüklendi.\n";
+    } catch (const cv::Exception& e) {
+        std::cerr << "YOLO modeli yüklenirken hata: " << e.what() << std::endl;
+        throw;
+    }
+}
+
+std::vector<TrackedObject> HumanDetector::detectWithYOLO(const cv::Mat& frame) {
+    std::vector<TrackedObject> detections;
+    
+    try {
+        // Görüntüyü blob formatına dönüştür
+        cv::Mat blob;
+        cv::dnn::blobFromImage(frame, blob, 1/255.0, 
+                              cv::Size(INPUT_WIDTH, INPUT_HEIGHT),
+                              cv::Scalar(0,0,0), true, false);
+        
+        net.setInput(blob);
+        
+        // Forward pass
+        std::vector<cv::Mat> outs;
+        net.forward(outs, getOutputLayerNames());
+        
+        // Tespitleri işle
+        std::vector<int> classIds;
+        std::vector<float> confidences;
+        std::vector<cv::Rect> boxes;
+        
+        for (const auto& out : outs) {
+            for (int i = 0; i < out.rows; ++i) {
+                const float* data = out.ptr<float>(i);
+                float confidence = data[4];
+                
+                if (confidence > CONF_THRESHOLD) {
+                    // COCO veri setinde insan sınıfı ID'si 0'dır
+                    if (static_cast<int>(data[5]) == 0) { // Sadece insan sınıfı
+                        float centerX = data[0] * frame.cols;
+                        float centerY = data[1] * frame.rows;
+                        float width = data[2] * frame.cols;
+                        float height = data[3] * frame.rows;
+                        
+                        cv::Rect box;
+                        box.x = centerX - width/2;
+                        box.y = centerY - height/2;
+                        box.width = width;
+                        box.height = height;
+                        
+                        boxes.push_back(box);
+                        confidences.push_back(confidence);
+                        classIds.push_back(0);
+                    }
+                }
+            }
+        }
+        
+        // Non-maximum suppression uygula
+        std::vector<int> indices;
+        cv::dnn::NMSBoxes(boxes, confidences, CONF_THRESHOLD, 
+                         NMS_THRESHOLD, indices);
+        
+        // Tespit edilen nesneleri TrackedObject'e dönüştür
+        for (size_t i = 0; i < indices.size(); ++i) {
+            int idx = indices[i];
+            TrackedObject obj;
+            obj.boundingBox = boxes[idx];
+            obj.confidence = confidences[idx];
+            obj.distance = calculateDistance(boxes[idx]);
+            obj.direction = calculateDirection(boxes[idx], lastDetectedBox);
+            obj.isMoving = isPersonMoving(boxes[idx], lastDetectedBox);
+            
+            detections.push_back(obj);
+            lastDetectedBox = boxes[idx];
+        }
+        
+    } catch (const cv::Exception& e) {
+        std::cerr << "YOLO tespiti sırasında hata: " << e.what() << std::endl;
+    }
+    
+    return detections;
+}
+
+std::vector<std::string> HumanDetector::getOutputLayerNames() {
+    std::vector<std::string> names;
+    std::vector<int> outLayers = net.getUnconnectedOutLayers();
+    std::vector<std::string> layersNames = net.getLayerNames();
+    names.resize(outLayers.size());
+    for (size_t i = 0; i < outLayers.size(); ++i) {
+        names[i] = layersNames[outLayers[i] - 1];
+    }
+    return names;
 }
