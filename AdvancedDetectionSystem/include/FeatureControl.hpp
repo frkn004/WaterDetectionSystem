@@ -1,27 +1,48 @@
-// include/FeatureControl.hpp
 #pragma once
 #include <opencv2/opencv.hpp>
+#include <unordered_map>
+#include <string>
 
 class FeatureControl {
 public:
-    // Özellik durumları - cpp dosyasındaki tüm özellikleri yansıtacak şekilde
-    bool showFPS;
-    bool showTrajectory;
-    bool showDistance;
-    bool showDirection;
-    bool showWaterLevel;
-    bool showSkinDetection;
-    bool showSeaDetection;
-    bool showHumanDetection;
-    bool enableNotifications;
+    enum class Feature {
+        SHOW_FPS,
+        SHOW_TRAJECTORY,
+        SHOW_DISTANCE,
+        SHOW_DIRECTION,
+        SHOW_WATER_LEVEL,
+        SHOW_SKIN_DETECTION,
+        SHOW_SEA_DETECTION,
+        SHOW_HUMAN_DETECTION,
+        SHOW_BOAT_DETECTION,
+        ENABLE_NOTIFICATIONS,
+        SHOW_OBJECT_ID,
+        SHOW_CONFIDENCE,
+        SHOW_SPEED,
+        SHOW_ACCELERATION,
+        SHOW_HEAT_MAP,
+        ENABLE_NIGHT_MODE,
+        SHOW_GRID,
+        SHOW_COORDINATES,
+        ENABLE_RECORDING,
+        SHOW_TIMESTAMP
+    };
 
-    // Constructor - cpp'de tüm özellikleri true olarak başlattığımız için böyle olmalı
+private:
+    std::unordered_map<Feature, bool> features;
+    std::unordered_map<Feature, char> featureKeys;
+    std::unordered_map<Feature, std::string> featureNames;
+
+public:
     FeatureControl();
-
-    // Özellik kontrolleri - cpp'deki switch-case yapısına uygun
+    
+    // Feature kontrolü için metodlar
+    void toggleFeature(Feature feature);
     void toggleFeature(char key);
-
-    // Görselleştirme fonksiyonları - cpp'deki detaylı implementasyonlara uygun
+    bool isEnabled(Feature feature) const;
+    
+    // Görselleştirme metodları
     void displayHelp(cv::Mat& frame);
     void displayFeatureStatus(cv::Mat& frame);
+    std::string getFeatureName(Feature feature) const;
 };

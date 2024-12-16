@@ -1,3 +1,7 @@
 /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/AdvancedDetectionSystem.dir
 /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/edit_cache.dir
 /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/rebuild_cache.dir
+/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/list_install_components.dir
+/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/install.dir
+/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/install/local.dir
+/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build/CMakeFiles/install/strip.dir

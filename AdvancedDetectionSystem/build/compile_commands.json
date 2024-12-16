@@ -1,0 +1,56 @@
+[
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/BoatDetector.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/BoatDetector.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/BoatDetector.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/BoatDetector.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/FeatureControl.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/FeatureControl.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/FeatureControl.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/FeatureControl.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/HumanDetector.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/HumanDetector.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/HumanDetector.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/HumanDetector.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/NotificationSystem.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/NotificationSystem.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/NotificationSystem.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/NotificationSystem.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/ObjectDetector.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/ObjectDetector.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/ObjectDetector.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/ObjectDetector.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/SeaDetector.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/SeaDetector.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/SeaDetector.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/SeaDetector.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/SkinDetector.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/SkinDetector.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/SkinDetector.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/SkinDetector.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/TrackedObject.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/TrackedObject.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/TrackedObject.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/TrackedObject.cpp.o"
+},
+{
+  "directory": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/build",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/c++  -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -o CMakeFiles/AdvancedDetectionSystem.dir/src/main.cpp.o -c /Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/main.cpp",
+  "file": "/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/src/main.cpp",
+  "output": "CMakeFiles/AdvancedDetectionSystem.dir/src/main.cpp.o"
+}
+]

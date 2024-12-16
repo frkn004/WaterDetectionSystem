@@ -1,265 +1,283 @@
 #include "SeaDetector.hpp"
-#include <iostream>
+#include <algorithm>
+#include <numeric>
 
-SeaDetector::SeaDetector() {
-    // Deniz renk aralıkları optimize edildi
-    config.lowerThreshold = cv::Scalar(90, 40, 40);  // Mavi ton aralığı daraltıldı
-    config.upperThreshold = cv::Scalar(130, 255, 255);
-    config.minArea = 5000.0f;  // Minimum alan arttırıldı
-    config.waveThreshold = 0.8f;
-    config.morphSize = 5;
-    config.useAdaptiveThreshold = true;
+SeaDetector::SeaDetector() : SeaDetector(Config{}) {}
 
-    horizonLine = 0.45f; // Ufuk çizgisi varsayılan değeri
-    kernel = cv::getStructuringElement(cv::MORPH_RECT,
-                                     cv::Size(config.morphSize, config.morphSize));
-}
-
-SeaDetector::SeaDetector(const Config& config) : config(config), horizonLine(0.45f) {
-    kernel = cv::getStructuringElement(cv::MORPH_RECT,
-                                     cv::Size(config.morphSize, config.morphSize));
-}
-
-SeaDetector::SeaInfo SeaDetector::detectSea(cv::Mat& frame) {
-    SeaDetector::SeaInfo info{false, 0.0f, cv::Point2f(0,0)};
-    
+SeaDetector::SeaDetector(const Config& config) : config(config) {
     try {
-        // Ön işleme
-        cv::Mat mask = preprocessFrame(frame);
-        
-        // Ana kontur tespiti
-        std::vector<cv::Point> mainContour = findLargestContour(mask);
-        
-        if (!mainContour.empty()) {
-            float area = cv::contourArea(mainContour);
-            if (area > config.minArea) {
-                info.isDetected = true;
-                info.contour = mainContour;
-                info.area = area;
-                info.centerPoint = calculateCenterPoint(mainContour);
-                
-                // Dalga analizi
-                detectWaves(frame, info);
-                info.depth = estimateDepth(frame, info.centerPoint);
-            }
-        }
-    } catch (const cv::Exception& e) {
-        std::cerr << "OpenCV Error in detectSea: " << e.what() << std::endl;
+        config.validate();
+        kernel = cv::getStructuringElement(cv::MORPH_RECT, 
+                                         cv::Size(config.morphSize, config.morphSize));
     }
-    
-    return info;
+    catch (const std::exception& e) {
+        throw SeaDetectionError("Failed to initialize SeaDetector: " + std::string(e.what()));
+    }
+}
+
+// SeaInfo yerine SeaDetector::SeaInfo kullanıldı
+SeaDetector::SeaInfo SeaDetector::detectSea(const cv::Mat& frame) {
+    if (frame.empty()) {
+        throw SeaDetectionError("Empty frame provided");
+    }
+
+    SeaInfo info;
+    try {
+        std::lock_guard<std::mutex> lock(mtx);
+        
+        // 1. Görüntü ön işleme
+        cv::Mat processed = preprocessFrame(frame);
+        
+        // 2. Su bölgesi tespiti
+        cv::Mat waterMask = detectWaterRegion(processed);
+        
+        // 3. En büyük konturu bul
+        info.contour = findLargestContour(waterMask);
+        
+        if (!info.contour.empty()) {
+            info.isDetected = true;
+            info.centerPoint = calculateCenterPoint(info.contour);
+            info.area = cv::contourArea(info.contour);
+            
+            // 4. Dalga analizi
+            info.waveAnalysis = analyzeWavePattern(frame);
+            info.waveIntensity = info.waveAnalysis.waveIntensity;
+            
+            // 5. Ek özellikler
+            info.visibility = estimateVisibility(frame, waterMask);
+            info.surfaceTemperature = estimateSurfaceTemperature(frame, waterMask);
+            info.waveAnalysis.dominantDirection = calculateDominantDirection(info.contour);
+        }
+
+        if (!info.isValid()) {
+            throw SeaDetectionError("Invalid sea detection results");
+        }
+        
+        return info;
+    }
+    catch (const cv::Exception& e) {
+        throw SeaDetectionError("OpenCV error in detectSea: " + std::string(e.what()));
+    }
 }
 
 cv::Mat SeaDetector::preprocessFrame(const cv::Mat& frame) {
+    if (preprocessBuffer.empty() || preprocessBuffer.size() != frame.size() ||
+        preprocessBuffer.type() != frame.type()) {
+        preprocessBuffer = cv::Mat(frame.size(), frame.type());
+    }
+    
+    frame.copyTo(preprocessBuffer);
+    cv::GaussianBlur(preprocessBuffer, preprocessBuffer, cv::Size(5, 5), 0);
+    cv::convertScaleAbs(preprocessBuffer, preprocessBuffer, 1.2, 0);
+    
+    return preprocessBuffer;
+}
+
+cv::Mat SeaDetector::detectWaterRegion(const cv::Mat& frame) {
     cv::Mat hsv;
     cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
     
-    // ROI tanımla - sadece ufuk çizgisi altını al
-    int roiHeight = frame.rows * (1.0f - horizonLine);
-    cv::Mat roi = hsv(cv::Rect(0, frame.rows * horizonLine,
-                              frame.cols, roiHeight));
-    
-    // Deniz maskelemesi
-    cv::Mat mask;
-    cv::inRange(roi, config.lowerThreshold, config.upperThreshold, mask);
-    
-    // Morfolojik işlemler
-    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
-    cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
-    
-    // Tam boyutlu maske oluştur
-    cv::Mat fullMask = cv::Mat::zeros(frame.size(), CV_8UC1);
-    mask.copyTo(fullMask(cv::Rect(0, frame.rows * horizonLine,
-                                 frame.cols, roiHeight)));
-    
-    return fullMask;
-}
-
-void SeaDetector::detectWaves(const cv::Mat& frame, SeaDetector::SeaInfo& info) {
-    cv::Mat grayFrame;
-    cv::cvtColor(frame, grayFrame, cv::COLOR_BGR2GRAY);
-    
-    // ROI için sadece deniz bölgesini al
-    int roiY = frame.rows * horizonLine;
-    cv::Mat roi = grayFrame(cv::Rect(0, roiY,
-                                    frame.cols, frame.rows - roiY));
-    
-    // Gradyan hesaplama
-    cv::Mat sobelX, sobelY, gradMag;
-    cv::Sobel(roi, sobelX, CV_32F, 1, 0);
-    cv::Sobel(roi, sobelY, CV_32F, 0, 1);
-    
-    cv::magnitude(sobelX, sobelY, gradMag);
-    gradMag.convertTo(gradMag, CV_8UC1);
-    
-    // Dalga desenlerini tespit et
-    cv::threshold(gradMag, gradMag, 50, 255, cv::THRESH_BINARY);
-    
-    std::vector<std::vector<cv::Point>> waveContours;
-    cv::findContours(gradMag, waveContours, cv::RETR_EXTERNAL,
-                     cv::CHAIN_APPROX_SIMPLE);
-    
-    // Dalga yoğunluğunu hesapla
-    float totalIntensity = 0.0f;
-    int validContours = 0;
-    
-    for (const auto& waveContour : waveContours) {
-        if (cv::contourArea(waveContour) > 100) {
-            totalIntensity += calculateWaveIntensity(waveContour);
-            validContours++;
-        }
+    if (waterMaskBuffer.empty() || waterMaskBuffer.size() != frame.size()) {
+        waterMaskBuffer = cv::Mat(frame.size(), CV_8UC1);
     }
     
-    info.waveIntensity = validContours > 0 ? totalIntensity / validContours : 0.0f;
-}
+    cv::inRange(hsv, config.waterLowerBound, config.waterUpperBound, waterMaskBuffer);
+    cv::morphologyEx(waterMaskBuffer, waterMaskBuffer, cv::MORPH_OPEN, kernel);
+    cv::morphologyEx(waterMaskBuffer, waterMaskBuffer, cv::MORPH_CLOSE, kernel);
 
-float SeaDetector::calculateWaveIntensity(const std::vector<cv::Point>& contour) {
-    if (contour.empty()) return 0.0f;
-    
-    double perimeter = cv::arcLength(contour, true);
-    double area = cv::contourArea(contour);
-    
-    if (area < 1e-5) return 0.0f;
-    
-    // Dalga karmaşıklık ölçüsü
-    float complexity = static_cast<float>((perimeter * perimeter) /
-                                        (4 * CV_PI * area));
-    
-    // Kontur analizi
-    std::vector<cv::Point> hull;
-    cv::convexHull(contour, hull);
-    
-    // Hull/Contour oranı
-    float hullArea = cv::contourArea(hull);
-    float convexityRatio = hullArea > 0 ? area / hullArea : 0;
-    
-    return (complexity * 0.6f + (1.0f - convexityRatio) * 0.4f);
-}
-
-float SeaDetector::estimateDepth(const cv::Mat& frame, const cv::Point2f& point) {
-    float relativeHeight = (point.y - frame.rows * horizonLine) /
-                          (frame.rows * (1.0f - horizonLine));
-    
-    float depth = relativeHeight > 0 ?
-                 -std::log(1 - relativeHeight * 0.9f) : 0;
-    
-    return std::min(std::max(depth, 0.0f), 1.0f);
-}
-
-std::vector<cv::Point> SeaDetector::findLargestContour(const cv::Mat& mask) {
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-    
-    if (contours.empty()) return std::vector<cv::Point>();
-    
-    return *std::max_element(contours.begin(), contours.end(),
-        [](const auto& c1, const auto& c2) {
-            return cv::contourArea(c1) < cv::contourArea(c2);
-        });
-}
-
-cv::Point2f SeaDetector::calculateCenterPoint(const std::vector<cv::Point>& contour) {
-    cv::Moments moments = cv::moments(contour);
-    if (moments.m00 != 0) {
-        return cv::Point2f(moments.m10/moments.m00, moments.m01/moments.m00);
+    if (config.useAdaptiveThreshold) {
+        cv::adaptiveThreshold(waterMaskBuffer, waterMaskBuffer, 255,
+                            cv::ADAPTIVE_THRESH_GAUSSIAN_C,
+                            cv::THRESH_BINARY, 11, 2);
     }
-    return cv::Point2f(0, 0);
+
+    return waterMaskBuffer;
 }
 
-void SeaDetector::visualizeResults(cv::Mat& frame, const SeaDetector::SeaInfo& info) {
-    if (!info.isDetected) return;
-    
-    try {
-        // Ufuk çizgisini göster
-        int horizonY = frame.rows * horizonLine;
-        cv::line(frame, cv::Point(0, horizonY),
-                cv::Point(frame.cols, horizonY),
-                cv::Scalar(0, 255, 255), 2);
-        
-        // Kontur çizimi
-        cv::polylines(frame, info.contour, true, cv::Scalar(0, 255, 0), 2);
-        
-        // Merkez noktası
-        cv::circle(frame, info.centerPoint, 5, cv::Scalar(0, 0, 255), -1);
-        
-        // Dalga yoğunluğu gösterimi
-        std::string waveText = "Dalga Yogunlugu: " +
-            std::to_string(static_cast<int>(info.waveIntensity * 100)) + "%";
-        cv::putText(frame, waveText, cv::Point(10, 30),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
-        
-        // Derinlik gösterimi
-        std::string depthText = "Tahmini Derinlik: " +
-            std::to_string(static_cast<int>(info.depth * 100)) + "%";
-        cv::putText(frame, depthText, cv::Point(10, 60),
-                   cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 255), 2);
-        
-        // Yüksek dalga uyarısı
-        if (info.waveIntensity > config.waveThreshold) {
-            cv::putText(frame, "YUKSEK DALGA AKTIVITESI!",
-                       cv::Point(10, 90),
-                       cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                       cv::Scalar(0, 0, 255), 2);
-        }
-    } catch (const cv::Exception& e) {
-        std::cerr << "OpenCV Error in visualizeResults: " << e.what() << std::endl;
-    }
-}
-
+// WaveAnalysis yerine SeaDetector::WaveAnalysis kullanıldı
 SeaDetector::WaveAnalysis SeaDetector::analyzeWavePattern(const cv::Mat& frame) {
     WaveAnalysis analysis;
     
-    // Görüntü segmentasyonu ile su sınırını belirle
-    cv::Mat waterMask = detectWaterRegion(frame);
-    
-    // Dalgaların yüksekliğini hesapla
-    analysis.waveHeight = calculateWaveHeight(waterMask);
-    
-    // Dalga periyodunu hesapla
-    analysis.wavePeriod = calculateWavePeriod();
-    
-    // Tehlike durumunu değerlendir
-    analysis.isDangerous = evaluateWaveConditions(analysis);
+    try {
+        cv::Mat waterMask = detectWaterRegion(frame);
+        analysis.waveHeight = calculateWaveHeight(waterMask);
+        analysis.wavePeriod = calculateWavePeriod();
+        analysis.turbulence = calculateTurbulence(frame, waterMask);
+        analysis.waveIntensity = analysis.turbulence;
+        analysis.isDangerous = evaluateWaveConditions(analysis);
+        
+    } catch (const std::exception& e) {
+        throw SeaDetectionError("Error in wave analysis: " + std::string(e.what()));
+    }
     
     return analysis;
 }
 
-cv::Mat SeaDetector::detectWaterRegion(const cv::Mat& frame) {
-    // Renk ve doku analizi ile su bölgesini tespit et
-    cv::Mat mask;
-    cv::Mat hsv;
-    cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
-    
-    // Su için HSV aralığını belirle
-    cv::inRange(hsv, waterLowerBound, waterUpperBound, mask);
-    
-    // Morfolojik işlemlerle gürültüyü azalt
-    cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
-    
-    return mask;
+float SeaDetector::calculateTurbulence(const cv::Mat& frame, const cv::Mat& waterMask) {
+    if (frame.empty() || waterMask.empty()) return 0.0f;
+
+    cv::Mat gray, masked;
+    cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
+    gray.copyTo(masked, waterMask);
+
+    cv::Mat laplacian;
+    cv::Laplacian(masked, laplacian, CV_32F);
+
+    cv::Mat gradX, gradY;
+    cv::Sobel(masked, gradX, CV_32F, 1, 0);
+    cv::Sobel(masked, gradY, CV_32F, 0, 1);
+
+    cv::Mat magnitude;
+    cv::magnitude(gradX, gradY, magnitude);
+
+    cv::Scalar laplacianScore, gradientScore;
+    cv::meanStdDev(laplacian, cv::Scalar(), laplacianScore);
+    cv::meanStdDev(magnitude, cv::Scalar(), gradientScore);
+
+    float combinedScore = (laplacianScore[0] + gradientScore[0]) / 2.0f;
+    return std::min(1.0f, combinedScore / 100.0f);
 }
 
-float SeaDetector::calculateWaveHeight(const cv::Mat& waterMask) {
-    // Kontur analizi ile dalga yüksekliğini hesapla
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(waterMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+float SeaDetector::calculateWaveHeight(const cv::Mat& waterMask) const {
+    if (waterMask.empty()) return 0.0f;
     
-    // En üst ve en alt noktaları bul
-    // ...
+    cv::Mat gradY;
+    cv::Sobel(waterMask, gradY, CV_32F, 0, 1);
     
-    return waveHeight;
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(gradY, mean, stddev);
+    
+    float estimatedHeight = stddev[0] * 0.1f;
+    return std::min(estimatedHeight, config.maxWaveHeight);
 }
 
-float SeaDetector::calculateWavePeriod() {
-    // Dalga periyodunu hesapla
-    // ...
-    
-    return wavePeriod;
+float SeaDetector::calculateWavePeriod() const {
+    return 5.0f;
 }
 
-bool SeaDetector::evaluateWaveConditions(const WaveAnalysis& analysis) {
-    // Tehlike durumunu değerlendir
-    // ...
+bool SeaDetector::evaluateWaveConditions(const WaveAnalysis& analysis) const {
+    bool heightDanger = analysis.waveHeight > config.maxWaveHeight * 0.8f;
+    bool periodDanger = analysis.wavePeriod < config.dangerousWavePeriod;
+    bool turbulenceDanger = analysis.turbulence > config.waveThreshold;
     
-    return isDangerous;
+    return heightDanger || periodDanger || turbulenceDanger;
+}
+
+std::vector<cv::Point> SeaDetector::findLargestContour(const cv::Mat& mask) {
+    if (mask.empty()) return std::vector<cv::Point>();
+    
+    contoursBuffer.clear();
+    cv::findContours(mask.clone(), contoursBuffer, cv::RETR_EXTERNAL, 
+                     cv::CHAIN_APPROX_SIMPLE);
+    
+    if (contoursBuffer.empty()) return std::vector<cv::Point>();
+    
+    auto maxContour = std::max_element(contoursBuffer.begin(), contoursBuffer.end(),
+        [](const std::vector<cv::Point>& c1, const std::vector<cv::Point>& c2) {
+            return cv::contourArea(c1) < cv::contourArea(c2);
+        });
+    
+    return *maxContour;
+}
+
+cv::Point2f SeaDetector::calculateCenterPoint(const std::vector<cv::Point>& contour) const {
+    if (contour.empty()) return cv::Point2f(0, 0);
+    
+    cv::Moments m = cv::moments(contour);
+    if (m.m00 == 0) return cv::Point2f(0, 0);
+    
+    return cv::Point2f(m.m10/m.m00, m.m01/m.m00);
+}
+
+float SeaDetector::estimateVisibility(const cv::Mat& frame, const cv::Mat& waterMask) {
+    cv::Mat masked;
+    frame.copyTo(masked, waterMask);
+    
+    cv::Mat gray;
+    cv::cvtColor(masked, gray, cv::COLOR_BGR2GRAY);
+    
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(gray, mean, stddev);
+    
+    float contrast = stddev[0] / mean[0];
+    return 100.0f * (1.0f - std::min(1.0f, contrast));
+}
+
+float SeaDetector::estimateSurfaceTemperature(const cv::Mat& frame, const cv::Mat& waterMask) {
+    constexpr float BASELINE_TEMP = 20.0f;
+    constexpr float MAX_VARIATION = 5.0f;
+    
+    cv::Mat masked;
+    frame.copyTo(masked, waterMask);
+    
+    cv::Scalar meanColor = cv::mean(masked, waterMask);
+    float blueComponent = meanColor[0] / 255.0f;
+    
+    return BASELINE_TEMP + (blueComponent - 0.5f) * MAX_VARIATION;
+}
+
+cv::Point2f SeaDetector::calculateDominantDirection(const std::vector<cv::Point>& contour) {
+    if (contour.size() < 2) return cv::Point2f(0, 0);
+    
+    cv::Mat points(contour.size(), 2, CV_32F);
+    for (size_t i = 0; i < contour.size(); i++) {
+        points.at<float>(i, 0) = contour[i].x;
+        points.at<float>(i, 1) = contour[i].y;
+    }
+    
+    cv::PCA pca(points, cv::Mat(), cv::PCA::DATA_AS_ROW);
+    return cv::Point2f(pca.eigenvectors.at<float>(0, 0),
+                      pca.eigenvectors.at<float>(0, 1));
+}
+
+void SeaDetector::visualizeResults(cv::Mat& frame, const SeaInfo& info) const {
+    if (!info.isDetected) return;
+
+    try {
+        if (!info.contour.empty()) {
+            cv::polylines(frame, std::vector<std::vector<cv::Point>>{info.contour},
+                         true, cv::Scalar(0, 255, 0), 2);
+        }
+
+        cv::circle(frame, info.centerPoint, 5, cv::Scalar(0, 0, 255), -1);
+
+        int lineHeight = 30;
+        int yPos = 30;
+        
+        auto drawText = [&](const std::string& text, const cv::Scalar& color) {
+            cv::putText(frame, text, cv::Point(10, yPos),
+                       cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
+            yPos += lineHeight;
+        };
+
+        drawText(cv::format("Wave Height: %.1fm", info.waveAnalysis.waveHeight),
+                cv::Scalar(0, 255, 0));
+        drawText(cv::format("Wave Period: %.1fs", info.waveAnalysis.wavePeriod),
+                cv::Scalar(0, 255, 0));
+        drawText(cv::format("Visibility: %.1fm", info.visibility),
+                cv::Scalar(0, 255, 0));
+        drawText(cv::format("Temperature: %.1f°C", info.surfaceTemperature),
+                cv::Scalar(0, 255, 0));
+
+        if (info.waveAnalysis.isDangerous) {
+            drawText("WARNING: High Wave Activity!", cv::Scalar(0, 0, 255));
+        }
+
+        int barWidth = 200;
+        int barHeight = 20;
+
+        cv::rectangle(frame,
+                     cv::Point(frame.cols - barWidth - 20, 30),
+                     cv::Point(frame.cols - 20, 30 + barHeight),
+                     cv::Scalar(0, 0, 0), 1);
+
+        int filledWidth = static_cast<int>(info.waveIntensity * barWidth);
+        cv::rectangle(frame,
+                     cv::Point(frame.cols - barWidth - 20, 30),
+                     cv::Point(frame.cols - barWidth - 20 + filledWidth, 30 + barHeight),
+                     cv::Scalar(0, 0, 255), -1);
+    }
+    catch (const cv::Exception& e) {
+        throw SeaDetectionError("Visualization error: " + std::string(e.what()));
+    }
 }

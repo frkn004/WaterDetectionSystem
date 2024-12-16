@@ -1,164 +1,209 @@
 #include "TrackedObject.hpp"
 #include <iostream>
+#include <cmath>
+#include <algorithm>
 
-TrackedObject::TrackedObject(int id) : 
-    kf(4, 2, 0),
+TrackedObject::TrackedObject(int id, const KalmanConfig& config) : 
+    kf(4, 2, 0),  // State: [x, y, vx, vy], Measure: [x, y]
     lastPosition(0, 0),
     velocity(0, 0),
     initialized(false),
-    history(),
     objectId(id),
     age(0),
     missedFrames(0),
     confidence(1.0f),
-    id(id)
-{
-    // Kalman filtresi başlatma işlemleri
+    kalmanConfig(config) {
+    
+    try {
+        initializeKalmanFilter();
+    } catch (const std::exception& e) {
+        throw TrackingError("Failed to initialize Kalman filter: " + std::string(e.what()));
+    }
+}
+
+void TrackedObject::initializeKalmanFilter() {
+    kalmanConfig.validate();
+    
+    // Geçiş matrisi (Transition Matrix) ayarlanması
     kf.transitionMatrix = (cv::Mat_<float>(4, 4) << 
         1,0,1,0,
         0,1,0,1,
         0,0,1,0,
         0,0,0,1);
     
+    // Ölçüm matrisi (Measurement Matrix)
     cv::setIdentity(kf.measurementMatrix);
-    cv::setIdentity(kf.processNoiseCov, cv::Scalar::all(1e-4));
-    cv::setIdentity(kf.measurementNoiseCov, cv::Scalar::all(1e-1));
-    cv::setIdentity(kf.errorCovPost, cv::Scalar::all(1));
+    
+    // Process Noise Covariance Matrix (Q)
+    cv::setIdentity(kf.processNoiseCov, 
+                   cv::Scalar::all(kalmanConfig.processNoise));
+    
+    // Measurement Noise Covariance Matrix (R)
+    cv::setIdentity(kf.measurementNoiseCov, 
+                   cv::Scalar::all(kalmanConfig.measurementNoise));
+    
+    // Error Covariance Matrix (P)
+    cv::setIdentity(kf.errorCovPost, 
+                   cv::Scalar::all(kalmanConfig.errorCovariance));
 }
 
 void TrackedObject::update(const cv::Point2f& pos) {
     try {
         if (!initialized) {
+            // İlk çerçeve için Kalman filtresi başlatma
             kf.statePost.at<float>(0) = pos.x;
             kf.statePost.at<float>(1) = pos.y;
-            kf.statePost.at<float>(2) = 0;
-            kf.statePost.at<float>(3) = 0;
+            kf.statePost.at<float>(2) = 0;  // initial vx
+            kf.statePost.at<float>(3) = 0;  // initial vy
             lastPosition = pos;
             initialized = true;
+            updateHistory(pos);
             return;
         }
 
-        cv::Mat measurement = (cv::Mat_<float>(2, 1) << pos.x, pos.y);
+        // Prediction step
         cv::Mat prediction = kf.predict();
+        
+        // Measurement update
+        cv::Mat measurement = (cv::Mat_<float>(2, 1) << pos.x, pos.y);
         cv::Mat estimated = kf.correct(measurement);
 
-        cv::Point2f currentPos(estimated.at<float>(0), estimated.at<float>(1));
-        velocity.x = estimated.at<float>(2);
-        velocity.y = estimated.at<float>(3);
+        // Update state
+        lastPosition = cv::Point2f(estimated.at<float>(0), estimated.at<float>(1));
+        velocity = cv::Point2f(estimated.at<float>(2), estimated.at<float>(3));
         
-        history.push_back(currentPos);
-        if (history.size() > HISTORY_LENGTH) {
-            history.erase(history.begin());
-        }
-
-        lastPosition = currentPos;
+        // Update history and state
+        updateHistory(lastPosition);
         age++;
         missedFrames = 0;
         confidence = 1.0f;
+
     } catch (const cv::Exception& e) {
-        std::cerr << "OpenCV Error in TrackedObject::update: " << e.what() << std::endl;
-        confidence = 0.0f;
+        throw TrackingError("OpenCV error in update: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        std::cerr << "Error in TrackedObject::update: " << e.what() << std::endl;
-        confidence = 0.0f;
+        throw TrackingError("Error in update: " + std::string(e.what()));
     }
 }
 
-cv::Point2f TrackedObject::getPosition() const {
-    return lastPosition;
-}
-
-cv::Point2f TrackedObject::getVelocity() const {
-    return velocity;
+void TrackedObject::updateHistory(const cv::Point2f& pos) {
+    history.push_back(pos);
+    while (history.size() > MAX_HISTORY_SIZE) {
+        history.pop_front();
+    }
 }
 
 cv::Point2f TrackedObject::calculateAverageVelocity() const {
     if (history.size() < 2) return cv::Point2f(0, 0);
     
     cv::Point2f totalVelocity(0, 0);
-    for (size_t i = 1; i < history.size(); ++i) {
-        totalVelocity.x += history[i].x - history[i-1].x;
-        totalVelocity.y += history[i].y - history[i-1].y;
+    size_t count = 0;
+    
+    // Son N çerçevedeki hızları hesapla
+    auto it = history.begin();
+    auto prevIt = it++;
+    
+    for (; it != history.end(); ++it, ++prevIt) {
+        totalVelocity += *it - *prevIt;
+        count++;
     }
     
-    float avgX = totalVelocity.x / (history.size() - 1);
-    float avgY = totalVelocity.y / (history.size() - 1);
-    return cv::Point2f(avgX, avgY);
+    if (count == 0) return cv::Point2f(0, 0);
+    return totalVelocity * (1.0f / count);
 }
 
 std::string TrackedObject::getDirectionFromAngle(float angle) const {
-    if (angle < 0) angle += 360;
+    // Açıyı normalize et (0-360)
+    angle = fmod(angle + 360.0f, 360.0f);
     
-    if (angle >= 337.5 || angle < 22.5) return "Right";
-    else if (angle >= 22.5 && angle < 67.5) return "Down-Right";
-    else if (angle >= 67.5 && angle < 112.5) return "Down";
-    else if (angle >= 112.5 && angle < 157.5) return "Down-Left";
-    else if (angle >= 157.5 && angle < 202.5) return "Left";
-    else if (angle >= 202.5 && angle < 247.5) return "Up-Left";
-    else if (angle >= 247.5 && angle < 292.5) return "Up";
-    else return "Up-Right";
+    struct DirectionRange {
+        float minAngle;
+        float maxAngle;
+        std::string direction;
+    };
+    
+    static const DirectionRange directions[] = {
+        {337.5f, 22.5f,  "Right"},
+        {22.5f,  67.5f,  "Down-Right"},
+        {67.5f,  112.5f, "Down"},
+        {112.5f, 157.5f, "Down-Left"},
+        {157.5f, 202.5f, "Left"},
+        {202.5f, 247.5f, "Up-Left"},
+        {247.5f, 292.5f, "Up"},
+        {292.5f, 337.5f, "Up-Right"}
+    };
+    
+    for (const auto& dir : directions) {
+        if (dir.minAngle > dir.maxAngle) {
+            if (angle >= dir.minAngle || angle < dir.maxAngle) {
+                return dir.direction;
+            }
+        } else {
+            if (angle >= dir.minAngle && angle < dir.maxAngle) {
+                return dir.direction;
+            }
+        }
+    }
+    
+    return "Unknown";
 }
 
 std::string TrackedObject::getPredictedDirection() const {
     if (!initialized) return "Unknown";
     
     cv::Point2f avgVelocity = calculateAverageVelocity();
+    if (cv::norm(avgVelocity) < 1e-5) return "Stationary";
+    
     float angle = atan2(avgVelocity.y, avgVelocity.x) * 180 / CV_PI;
     return getDirectionFromAngle(angle);
 }
 
-void TrackedObject::drawTrajectory(cv::Mat& frame) {
+void TrackedObject::drawTrajectory(cv::Mat& frame) const {
     if (history.size() < 2) return;
     
     try {
-        for (size_t i = 1; i < history.size(); i++) {
-            float dx = history[i].x - history[i-1].x;
-            float dy = history[i].y - history[i-1].y;
+        static const cv::Scalar SLOW_COLOR(0, 255, 0);    // Green
+        static const cv::Scalar MEDIUM_COLOR(0, 255, 255); // Yellow
+        static const cv::Scalar FAST_COLOR(0, 0, 255);    // Red
+        
+        auto it = history.begin();
+        auto prevIt = it++;
+        
+        for (; it != history.end(); ++it, ++prevIt) {
+            float dx = it->x - prevIt->x;
+            float dy = it->y - prevIt->y;
             float speed = std::sqrt(dx*dx + dy*dy);
             
+            // Hıza göre renk seçimi
             cv::Scalar color;
             if (speed < 5.0f) {
-                color = cv::Scalar(0, 255, 0);
+                color = SLOW_COLOR;
             } else if (speed < 10.0f) {
-                color = cv::Scalar(0, 255, 255);
+                color = MEDIUM_COLOR;
             } else {
-                color = cv::Scalar(0, 0, 255);
+                color = FAST_COLOR;
             }
             
-            cv::line(frame, history[i-1], history[i], color, 2);
+            // Yörünge çizgisi
+            cv::line(frame, *prevIt, *it, color, 2);
         }
         
+        // Tahmin edilen hareket yönü oku
         if (history.size() >= 2) {
-            cv::Point2f lastPos = history.back();
             cv::Point2f avgVelocity = calculateAverageVelocity();
-            cv::Point2f direction = lastPos + avgVelocity * 20;
-            cv::arrowedLine(frame, lastPos, direction, cv::Scalar(255, 0, 0), 2);
+            if (cv::norm(avgVelocity) > 1e-5) {
+                cv::Point2f direction = lastPosition + avgVelocity * 20.0f;
+                cv::arrowedLine(frame, lastPosition, direction,
+                              cv::Scalar(255, 0, 0), 2);
+            }
         }
+        
     } catch (const cv::Exception& e) {
         std::cerr << "OpenCV Error in drawTrajectory: " << e.what() << std::endl;
     }
 }
 
-bool TrackedObject::isLost() const {
-    return missedFrames > 10;
-}
-
-void TrackedObject::markLost() {
-    missedFrames++;
-}
-
-void TrackedObject::resetMissedFrames() {
-    missedFrames = 0;
-}
-
-int TrackedObject::getObjectId() const {
-    return objectId;
-}
-
-int TrackedObject::getAge() const {
-    return age;
-}
-
-float TrackedObject::getConfidence() const {
-    return confidence;
+void TrackedObject::setKalmanConfig(const KalmanConfig& config) {
+    config.validate();
+    kalmanConfig = config;
+    initializeKalmanFilter();
 }

@@ -4,9 +4,9 @@
 # compile CXX with /Library/Developer/CommandLineTools/usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4
+CXX_INCLUDES = -I/Users/furkansevinc/Desktop/AdvancedDetectionSystem/AdvancedDetectionSystem/include -isystem /Library/Developer/CommandLineTools/usr/include/c++/v1 -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/opencv/4.10.0_15/include/opencv4
 
-CXX_FLAGSarm64 = -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.1.sdk
+CXX_FLAGSarm64 =  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
 
-CXX_FLAGS = -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.1.sdk
+CXX_FLAGS =  -stdlib=libc++ -Wall -Wextra -Wpedantic -O3 -DNDEBUG -O3 -std=gnu++17 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
 

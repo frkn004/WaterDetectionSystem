@@ -1,64 +1,77 @@
 #include "BoatDetector.hpp"
 #include <iostream>
+#include <cmath>
 
-BoatDetector::BoatDetector() : isBackgroundInitialized(false) {
-    kernel = cv::getStructuringElement(cv::MORPH_RECT,
-                                     cv::Size(config.morphSize, config.morphSize));
-}
+// Performans optimizasyonu için Static üyeler
+static const int MIN_CONTOUR_POINTS = 5;
+static const float SOLIDITY_THRESHOLD = 0.7f;
+static const float MOVEMENT_THRESHOLD = 5.0f;
+
+BoatDetector::BoatDetector() : BoatDetector(Config{}) {}
 
 BoatDetector::BoatDetector(const Config& config) :
-    config(config), isBackgroundInitialized(false) {
-    kernel = cv::getStructuringElement(cv::MORPH_RECT,
-                                     cv::Size(config.morphSize, config.morphSize));
+    config(config), 
+    isBackgroundInitialized(false) {
+    // Morfolojik işlemler için kernel optimizasyonu
+    kernel = cv::getStructuringElement(
+        cv::MORPH_RECT,
+        cv::Size(config.morphSize, config.morphSize)
+    );
 }
 
 std::vector<BoatDetector::BoatInfo> BoatDetector::detectBoats(const cv::Mat& frame) {
     std::vector<BoatInfo> boats;
     try {
-        // Arkaplan modelini güncelle
+        // 1. Arkaplan modelini güncelle
         updateBackgroundModel(frame);
 
-        // Ön işleme
+        // 2. Görüntü ön işleme
         cv::Mat mask = preprocessFrame(frame);
         
-        // Konturları bul
+        // 3. Konturları bul
         auto contours = findBoatContours(mask);
         
-        // Her kontur için tekne bilgisi oluştur
+        // 4. Her kontur için tekne bilgisi oluştur
         for (const auto& contour : contours) {
+            // Temel alan filtrelemesi
             float area = cv::contourArea(contour);
-            
             if (area < config.minArea || area > config.maxArea) {
                 continue;
             }
             
+            // Şekil validasyonu
             if (!validateBoatShape(contour)) {
                 continue;
             }
             
+            // Tekne bilgisi oluştur
             BoatInfo boat;
             boat.boundingBox = cv::boundingRect(contour);
             boat.area = area;
+            
+            // Merkez noktası hesapla
             boat.position = cv::Point2f(
                 boat.boundingBox.x + boat.boundingBox.width/2.0f,
                 boat.boundingBox.y + boat.boundingBox.height/2.0f
             );
+            
+            // Güven skoru ve hareket durumu hesapla
             boat.confidence = calculateConfidence(contour, mask);
             boat.isMoving = isBoatMoving(boat.position);
             
             boats.push_back(boat);
         }
         
-        // Pozisyon geçmişini güncelle
+        // 5. Pozisyon geçmişini güncelle
         if (!boats.empty()) {
             previousPositions.push_back(boats.back().position);
-            if (previousPositions.size() > 10) {
+            while (previousPositions.size() > 10) {
                 previousPositions.erase(previousPositions.begin());
             }
         }
         
     } catch (const cv::Exception& e) {
-        std::cerr << "Error in boat detection: " << e.what() << std::endl;
+        std::cerr << "OpenCV Error in boat detection: " << e.what() << std::endl;
     }
     
     return boats;
@@ -66,18 +79,19 @@ std::vector<BoatDetector::BoatInfo> BoatDetector::detectBoats(const cv::Mat& fra
 
 cv::Mat BoatDetector::preprocessFrame(const cv::Mat& frame) {
     cv::Mat processed;
-    cv::Mat hsv;
     
-    // HSV'ye dönüştür
+    // HSV renk uzayına dönüşüm
+    cv::Mat hsv;
     cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
     
     // Renk filtresi uygula
     cv::Mat colorMask;
     cv::inRange(hsv, config.lowerColor, config.upperColor, colorMask);
     
-    // Arkaplan çıkarma
+    // Arkaplan çıkarma işlemi
     cv::Mat fgMask;
     if (isBackgroundInitialized) {
+        // Mutlak fark alma
         cv::absdiff(frame, backgroundModel, fgMask);
         cv::cvtColor(fgMask, fgMask, cv::COLOR_BGR2GRAY);
         cv::threshold(fgMask, fgMask, 30, 255, cv::THRESH_BINARY);
@@ -100,19 +114,25 @@ void BoatDetector::updateBackgroundModel(const cv::Mat& frame) {
         backgroundModel = frame.clone();
         isBackgroundInitialized = true;
     } else {
-        // Arkaplan modelini yavaşça güncelle
+        // Kayan ortalama ile arkaplan güncelleme
         cv::accumulateWeighted(frame, backgroundModel, 0.01);
     }
 }
 
 std::vector<std::vector<cv::Point>> BoatDetector::findBoatContours(const cv::Mat& mask) {
     std::vector<std::vector<cv::Point>> contours;
+    // Harici konturları bul (hiyerarşi bilgisi olmadan)
     cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     return contours;
 }
 
 bool BoatDetector::validateBoatShape(const std::vector<cv::Point>& contour) {
-    // Kontur analizi
+    // Minimum nokta sayısı kontrolü
+    if (contour.size() < MIN_CONTOUR_POINTS) {
+        return false;
+    }
+    
+    // Rotasyona dayanıklı sınırlayıcı dikdörtgen
     cv::RotatedRect minRect = cv::minAreaRect(contour);
     float width = minRect.size.width;
     float height = minRect.size.height;
@@ -131,12 +151,14 @@ bool BoatDetector::validateBoatShape(const std::vector<cv::Point>& contour) {
     
     if (hullArea <= 0) return false;
     
+    // Doluluk oranı kontrolü
     float solidity = static_cast<float>(contourArea / hullArea);
-    return solidity > 0.7f;  // Tekne şekli genelde dışbükeydir
+    return solidity > SOLIDITY_THRESHOLD;
 }
 
 float BoatDetector::calculateConfidence(const std::vector<cv::Point>& contour,
                                       const cv::Mat& mask) {
+    // Sınırlayıcı kutu içindeki beyaz piksel oranı
     cv::Rect bbox = cv::boundingRect(contour);
     cv::Mat roi = mask(bbox);
     
@@ -152,19 +174,21 @@ bool BoatDetector::isBoatMoving(const cv::Point2f& currentPos) {
         return false;
     }
     
-    const float movementThreshold = 5.0f;  // piksel cinsinden hareket eşiği
-    cv::Point2f lastPos = previousPositions.back();
-    
+    // Son konumla karşılaştırma
+    const cv::Point2f& lastPos = previousPositions.back();
     float movement = cv::norm(currentPos - lastPos);
-    return movement > movementThreshold;
+    
+    return movement > MOVEMENT_THRESHOLD;
 }
 
 void BoatDetector::visualizeResults(cv::Mat& frame,
                                   const std::vector<BoatInfo>& boats) {
     for (const auto& boat : boats) {
-        // Tekne çerçevesi
+        // Hareket durumuna göre renk seçimi
         cv::Scalar color = boat.isMoving ? cv::Scalar(0, 0, 255) :
                                          cv::Scalar(0, 255, 0);
+        
+        // Tekne çerçevesi
         cv::rectangle(frame, boat.boundingBox, color, 2);
         
         // Güven skoru

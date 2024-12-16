@@ -8,6 +8,8 @@
 #include "SeaDetector.hpp"
 #include "SkinDetector.hpp"
 #include "BoatDetector.hpp"
+#include <chrono>
+#include <memory>
 
 class ObjectDetector {
 private:
@@ -28,15 +30,15 @@ private:
     // Kamera parametreleri
     struct CameraParams {
         float focalLength = 615.0f;
-        float knownWidth = 600.0f;  // mm cinsinden ortalama insan genişliği
-        float distanceThreshold = 5000.0f;  // mm cinsinden
+        float knownWidth = 600.0f;
+        float distanceThreshold = 5000.0f;
         cv::Mat cameraMatrix;
         cv::Mat distCoeffs;
     } params;
 
-    int nextTrackerId = 0;  // Yeni nesne takibi için benzersiz ID'ler
+    int nextTrackerId = 0;
 
-private:
+    // Private yardımcı fonksiyonlar
     float calculateDistance(const cv::Rect& box);
     void updateFPS();
     void detectWaterLine(cv::Mat& frame);
@@ -45,9 +47,13 @@ private:
     void detectAndTrackHumans(cv::Mat& frame);
     void detectSea(cv::Mat& frame);
     void detectSkin(cv::Mat& frame);
+    void drawGrid(cv::Mat& frame);
+    void drawCoordinates(cv::Mat& frame);
+    void drawTimestamp(cv::Mat& frame);
 
 public:
-    ObjectDetector(const std::string& cascadePath);
+    explicit ObjectDetector(const std::string& cascadePath);
     void detectAndTrack(cv::Mat& frame);
     void handleKeyPress(char key);
+    FeatureControl& getFeatureControl() { return features; }
 };
