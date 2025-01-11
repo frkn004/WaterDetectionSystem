@@ -185,10 +185,20 @@ public:
             }
 
             if (!modelLoaded) {
-                throw std::runtime_error("Yüz tanıma modeli yüklenemedi. Arama yapılan yollar:");
-                for (const auto& path : cascadePaths) {
-                    std::cerr << "  - " << path << std::endl;
-                }
+                throw std::runtime_error("Yüz tanıma modeli yüklenemedi.");
+            }
+
+            // Sea Detector konfigürasyonunu kontrol et
+            try {
+                auto& seaDetector = detector->getSeaDetector();
+                auto config = seaDetector.getConfig();
+                std::cout << "\nSea Detector konfigürasyonu:\n";
+                std::cout << "Max dalga yüksekliği: " << config.maxWaveHeight << "m\n";
+                std::cout << "Tehlikeli dalga yüksekliği: " << config.dangerousWaveHeight << "m\n";
+                std::cout << "Örnekleme hızı: " << config.samplingRate << " Hz\n";
+            } catch (const std::exception& e) {
+                std::cerr << "Sea Detector konfigürasyon hatası: " << e.what() << std::endl;
+                return false;
             }
             
             return true;
@@ -231,7 +241,7 @@ public:
                 VideoSource::Config config;
                 config.type = VideoSource::Type::VIDEO_FILE;
                 config.videoPath = videoPath;
-                config.loop = true;  // Video bitince başa sar
+                config.loop = true;
                 
                 runDetection(config);
             }
@@ -247,8 +257,7 @@ public:
             }
         }
     }
-
-private:
+    private:
     void runDetection(const VideoSource::Config& config) {
         try {
             videoSource = std::make_unique<VideoSource>();
@@ -259,25 +268,13 @@ private:
             std::cout << "\nKontroller:\n"
                       << "- ESC: Çıkış\n"
                       << "- H: Yardım menüsü\n"
+                      << "- 1-9: Farklı görüntüleme modları\n"
                       << "- Diğer tuşlar için yardım menüsüne bakın\n\n";
 
             isRunning = true;
             cv::Mat frame;
             
-            auto lastFPSCheck = std::chrono::steady_clock::now();
-            int frameCount = 0;
-            
             while (isRunning && videoSource->read(frame)) {
-                frameCount++;
-                auto now = std::chrono::steady_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - lastFPSCheck).count();
-                
-                if (duration >= 1) {
-                    std::cout << "FPS: " << frameCount / duration << "\r" << std::flush;
-                    frameCount = 0;
-                    lastFPSCheck = now;
-                }
-                
                 processFrame(frame);
                 
                 char key = cv::waitKey(1);
@@ -298,22 +295,30 @@ private:
     void showSettings() {
         while (true) {
             std::cout << "\n=== Ayarlar ===\n"
-                      << "1. Video Akış Hızı\n"
-                      << "2. Tespit Hassasiyeti\n"
-                      << "3. Ana Menüye Dön\n"
-                      << "Seçiminiz (1-3): ";
+                      << "1. Deniz Analiz Ayarları\n"
+                      << "2. Video Akış Hızı\n"
+                      << "3. Tespit Hassasiyeti\n"
+                      << "4. Ana Menüye Dön\n"
+                      << "Seçiminiz (1-4): ";
 
             std::string choice;
             std::getline(std::cin, choice);
 
             if (choice == "1") {
+                configureSeaDetector();
+            }
+            else if (choice == "2") {
                 std::cout << "Yeni FPS değeri girin (10-60): ";
                 std::string fpsStr;
                 std::getline(std::cin, fpsStr);
                 try {
                     double fps = std::stod(fpsStr);
                     if (fps >= 10 && fps <= 60) {
-                        // FPS ayarını güncelle
+                        if (videoSource) {
+                            VideoSource::Config newConfig;
+                            newConfig.fps = fps;
+                            videoSource->initialize(newConfig);
+                        }
                         std::cout << "FPS güncellendi: " << fps << std::endl;
                     } else {
                         std::cout << "Geçersiz FPS değeri!\n";
@@ -322,14 +327,14 @@ private:
                     std::cout << "Geçersiz giriş!\n";
                 }
             }
-            else if (choice == "2") {
+            else if (choice == "3") {
                 std::cout << "Tespit hassasiyeti (0.0-1.0): ";
                 std::string sensStr;
                 std::getline(std::cin, sensStr);
                 try {
                     float sensitivity = std::stof(sensStr);
                     if (sensitivity >= 0.0f && sensitivity <= 1.0f) {
-                        // Hassasiyet ayarını güncelle
+                        // Burada detektör hassasiyetini güncelle
                         std::cout << "Hassasiyet güncellendi: " << sensitivity << std::endl;
                     } else {
                         std::cout << "Geçersiz hassasiyet değeri!\n";
@@ -338,10 +343,102 @@ private:
                     std::cout << "Geçersiz giriş!\n";
                 }
             }
-            else if (choice == "3") break;
+            else if (choice == "4") {
+                break;
+            }
             else {
                 std::cout << "Geçersiz seçim!\n";
             }
+        }
+    }
+
+    void configureSeaDetector() {
+        try {
+            auto& seaDetector = detector->getSeaDetector();
+            auto currentConfig = seaDetector.getConfig();
+
+            while (true) {
+                std::cout << "\n=== Deniz Analiz Ayarları ===\n"
+                          << "1. Dalga Yüksekliği Limitleri\n"
+                          << "2. Su Seviyesi Eşikleri\n"
+                          << "3. Sıcaklık Ayarları\n"
+                          << "4. Görüntü İşleme Parametreleri\n"
+                          << "5. Ana Menüye Dön\n"
+                          << "Seçiminiz (1-5): ";
+
+                std::string choice;
+                std::getline(std::cin, choice);
+
+                if (choice == "1") {
+                    std::cout << "Maksimum dalga yüksekliği (m): ";
+                    std::string heightStr;
+                    std::getline(std::cin, heightStr);
+                    try {
+                        float height = std::stof(heightStr);
+                        if (height > 0) {
+                            currentConfig.maxWaveHeight = height;
+                            currentConfig.dangerousWaveHeight = height * 0.75f;
+                            seaDetector.setConfig(currentConfig);
+                            std::cout << "Dalga yüksekliği limitleri güncellendi.\n";
+                        }
+                    } catch (...) {
+                        std::cout << "Geçersiz giriş!\n";
+                    }
+                }
+                else if (choice == "2") {
+                    std::cout << "Su seviyesi değişim eşiği (m/h): ";
+                    std::string threshStr;
+                    std::getline(std::cin, threshStr);
+                    try {
+                        float thresh = std::stof(threshStr);
+                        if (thresh > 0) {
+                            currentConfig.waterLevelThreshold = thresh;
+                            seaDetector.setConfig(currentConfig);
+                            std::cout << "Su seviyesi eşiği güncellendi.\n";
+                        }
+                    } catch (...) {
+                        std::cout << "Geçersiz giriş!\n";
+                    }
+                }
+                else if (choice == "3") {
+                    std::cout << "Sıcaklık değişim eşiği (°C): ";
+                    std::string tempStr;
+                    std::getline(std::cin, tempStr);
+                    try {
+                        float temp = std::stof(tempStr);
+                        if (temp > 0) {
+                            currentConfig.temperatureThreshold = temp;
+                            seaDetector.setConfig(currentConfig);
+                            std::cout << "Sıcaklık eşiği güncellendi.\n";
+                        }
+                    } catch (...) {
+                        std::cout << "Geçersiz giriş!\n";
+                    }
+                }
+                else if (choice == "4") {
+                    std::cout << "Bulanıklaştırma boyutu (tek sayı): ";
+                    std::string blurStr;
+                    std::getline(std::cin, blurStr);
+                    try {
+                        int blur = std::stoi(blurStr);
+                        if (blur > 0 && blur % 2 == 1) {
+                            currentConfig.blurSize = blur;
+                            seaDetector.setConfig(currentConfig);
+                            std::cout << "Görüntü işleme parametreleri güncellendi.\n";
+                        }
+                    } catch (...) {
+                        std::cout << "Geçersiz giriş!\n";
+                    }
+                }
+                else if (choice == "5") {
+                    break;
+                }
+                else {
+                    std::cout << "Geçersiz seçim!\n";
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Ayar güncelleme hatası: " << e.what() << std::endl;
         }
     }
 };

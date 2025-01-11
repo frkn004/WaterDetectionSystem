@@ -21,13 +21,13 @@ private:
     SeaDetector seaDetector;
     BoatDetector boatDetector;
     FeatureControl features;
+    SeaDetector::Config seaConfig;
     
     bool showHelp;
     int frameCount;
     float fps;
     std::chrono::steady_clock::time_point lastTime;
 
-    // Kamera parametreleri
     struct CameraParams {
         float focalLength = 615.0f;
         float knownWidth = 600.0f;
@@ -36,7 +36,7 @@ private:
         cv::Mat distCoeffs;
     } params;
 
-    int nextTrackerId = 0;
+    int nextTrackerId;
 
     // Private yardımcı fonksiyonlar
     float calculateDistance(const cv::Rect& box);
@@ -53,7 +53,21 @@ private:
 
 public:
     explicit ObjectDetector(const std::string& cascadePath);
+    ~ObjectDetector() = default;
+    
+    // Copy/Move prevention
+    ObjectDetector(const ObjectDetector&) = delete;
+    ObjectDetector& operator=(const ObjectDetector&) = delete;
+    ObjectDetector(ObjectDetector&&) = delete;
+    ObjectDetector& operator=(ObjectDetector&&) = delete;
+
     void detectAndTrack(cv::Mat& frame);
     void handleKeyPress(char key);
+    
+    // Getters
     FeatureControl& getFeatureControl() { return features; }
+    SeaDetector& getSeaDetector() { return seaDetector; }
+    HumanDetector& getHumanDetector() { return humanDetector; }
+    BoatDetector& getBoatDetector() { return boatDetector; }
+    NotificationSystem& getNotificationSystem() { return notifications; }
 };
